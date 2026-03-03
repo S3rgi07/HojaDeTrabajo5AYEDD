@@ -9,7 +9,7 @@ RAM_CAPACITY = 100  # Capacidad total de RAM
 ARRIVAL_INTERVAL = 10  # Intervalo de llegada de los procesos
 CPU_INSTRUCTIONS = 3 # Cantidad de instrucciones que el CPU atiende por unidad
 
-tiempos_ejecucion = []
+execution_times = []
 
 def proceso(env, name, ram, cpu, instructions_per_tick):
     #----- Estado: NEW -----
@@ -39,7 +39,7 @@ def proceso(env, name, ram, cpu, instructions_per_tick):
                 instructions_left = 0 # Libera de manera anticipada si tiene menos de 3
             
             #Si al finalizar la atención del CPU el proceso aún tiene instrucciones por ejecutar, vuelve a READY
-            if instruction_left > 0:
+            if instructions_left > 0:
                 # Al dejar el CPU, se genera un número entero al azar entre 1 y 21
                 action = random.randint(1, 21)
                 
@@ -65,4 +65,37 @@ def proceso(env, name, ram, cpu, instructions_per_tick):
     total_time = output_time - arrival_time
     execution_times.append(total_time) # Se guarda el dato para hacer los cálculos del final
     
-    
+    def generate_processes(env, process_amount, interval, ram, cpu, instructions_per_tick):
+        # Genera los procesos espaciados en el tiempo según una distribución exponencial
+        for i in range(process_amount):
+            arrival_time = random.expovariate(1.0 / interval)
+            yield env.timeout(arrival_time)
+            
+            # Le indicamos a Simpy que agregue un nuevo proceso al entorno
+            env.process(proceso(env, f'Proceso-{i}', ram, cpu, instructions_per_tick))
+            
+    def run_simulation(process_amount, interval, ram_capacity, instructions_per_tick):
+        # Configura el entorno de Simpy y corre una simulación completa
+        execution_times.clear()  # Limpiar los tiempos de ejecución antes de cada simulación
+        
+        # Reseteamos la semilla para asegurar que cada simulación sea reproducible
+        random.seed(RANDOM_SEED)
+        
+        # Creamos el entorno de Simpy
+        env = simpy.Environment()
+        
+        # Creamos los recursos de RAM y CPU
+        ram = simpy.Container(env, init=ram_capacity, capacity=ram_capacity)
+        cpu = simpy.Resource(env, capacity=num_cpus)  # CPU con capacidad para atender
+        
+        # Iniciamos el generador de procesos
+        env.process(generate_processes(env, process_amount, interval, ram, cpu, cpu_speed))
+        
+        # Ejecuta la simulación
+        env.run()
+        
+        # Calculamos los resultados
+        mean = statistics.mean(execution_times)
+        deviation = statistics.stdev(execution_times) if len(execution_times) > 1 else 0
+        
+        return mean, deviation
